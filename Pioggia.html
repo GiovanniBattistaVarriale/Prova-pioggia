@@ -12,6 +12,7 @@
       --border-card: #d5dfec;
       --accent-blue: #1e40af;
       --accent-sky: #0284c7;
+      --accent-rose: #e11d48;
       --accent-soft: #eff6ff;
       --text-main: #0f172a;
       --text-muted: #475569;
@@ -85,7 +86,7 @@
 
     .card-weather {
       height: auto;
-      min-height: 310px;
+      min-height: 315px;
       max-height: none;
       background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
       border-top: 3px solid var(--accent-sky);
@@ -93,7 +94,7 @@
 
     @media (min-width: 860px) {
       .card-weather {
-        height: 270px;
+        height: 275px;
       }
     }
 
@@ -105,12 +106,11 @@
       display: block;
     }
 
-    /* Stile widget meteo */
     .weather-box {
       display: flex;
       flex-direction: column;
       height: 100%;
-      min-height: 294px;
+      min-height: 298px;
       padding: 6px 10px;
       gap: 8px;
     }
@@ -254,12 +254,28 @@
       position: relative;
       width: 100%;
       min-height: 150px;
+      touch-action: pan-y;
     }
 
     canvas {
       width: 100%;
       height: 100%;
       display: block;
+    }
+
+    .chart-tooltip {
+      position: absolute;
+      top: 4px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.88);
+      color: #ffffff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+      z-index: 2;
     }
 
     .weather-footer {
@@ -282,7 +298,6 @@
 </head>
 <body>
   <div class="layout">
-    <!-- SOPRA: Meteo Capua -->
     <div class="card card-weather">
       <div class="weather-box">
         <div class="weather-header">
@@ -297,19 +312,20 @@
         </div>
 
         <div class="weather-controls">
-          <div class="weather-tabs">
-            <button type="button" class="w-tab active" onclick="setMode('temp', this)">Temp (°C)</button>
-            <button type="button" class="w-tab" onclick="setMode('rain', this)">Pioggia (mm)</button>
-            <button type="button" class="w-tab" onclick="setMode('wind', this)">Vento (km/h)</button>
+          <div class="weather-tabs" role="tablist" aria-label="Variabile meteo">
+            <button type="button" class="w-tab active" data-mode="temp">Temp (°C)</button>
+            <button type="button" class="w-tab" data-mode="rain">Pioggia (mm)</button>
+            <button type="button" class="w-tab" data-mode="wind">Vento (km/h)</button>
           </div>
           <div class="date-picker-group">
-            <input type="date" id="datePicker" class="date-input" onchange="onDateChange()">
-            <button type="button" class="w-tab" onclick="resetToday()" title="Torna ad oggi">Oggi</button>
+            <input type="date" id="datePicker" class="date-input" aria-label="Seleziona data">
+            <button type="button" class="w-tab" id="btnToday" title="Torna ad oggi">Oggi</button>
           </div>
         </div>
 
-        <div class="canvas-wrap">
+        <div class="canvas-wrap" id="chartWrap">
           <canvas id="weatherChart"></canvas>
+          <div class="chart-tooltip" id="chartTooltip"></div>
         </div>
 
         <div class="weather-footer">
@@ -323,115 +339,113 @@
       </div>
     </div>
 
-    <!-- SOTTO: Griglia 2x2 delle 4 Stazioni Idrometriche -->
-    <div class="grid-2x2">
-      <!-- 1. Alto a Sinistra -->
-      <div class="card">
-        <iframe
-          src="https://pegelalarm.at/paw/chart.html?commonid=campania-37535-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
-          name="Stazione 1"
-          loading="lazy">
-        </iframe>
-      </div>
-
-      <!-- 2. Alto a Destra -->
-      <div class="card">
-        <iframe
-          src="https://pegelalarm.at/paw/chart.html?commonid=campania-12241-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
-          name="Stazione 2"
-          loading="lazy">
-        </iframe>
-      </div>
-
-      <!-- 3. Basso a Sinistra -->
-      <div class="card">
-        <iframe
-          src="https://pegelalarm.at/paw/chart.html?commonid=campania-20916-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
-          name="Stazione 3"
-          loading="lazy">
-        </iframe>
-      </div>
-
-      <!-- 4. Basso a Destra (Nuova stazione campania-38479-it) -->
-      <div class="card">
-        <iframe
-          src="https://pegelalarm.at/paw/chart.html?commonid=campania-38479-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
-          name="Stazione 4"
-          loading="lazy">
-        </iframe>
-      </div>
-    </div>
+    <div class="grid-2x2" id="stationsGrid"></div>
   </div>
 
   <script>
-    let weatherData = null;
-    let currentMode = 'temp';
+    const CONFIG = {
+      latitude: 41.1055,
+      longitude: 14.2139,
+      timezone: "Europe/Rome",
+      refreshMs: 15 * 60 * 1000,
+      stations: [
+        { commonId: "campania-37535-it", name: "Stazione 1" },
+        { commonId: "campania-12241-it", name: "Stazione 2" },
+        { commonId: "campania-20916-it", name: "Stazione 3" },
+        { commonId: "campania-38479-it", name: "Stazione 4" }
+      ]
+    };
 
-    function getTodayStr() {
-      const now = new Date();
-      const offset = now.getTimezoneOffset() * 60000;
-      return new Date(now - offset).toISOString().split('T')[0];
+    const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+
+    let weatherData = null;
+    let currentMode = "temp";
+    let hoverIndex = null;
+
+    function renderStations() {
+      const grid = document.getElementById("stationsGrid");
+      const frag = document.createDocumentFragment();
+      for (const st of CONFIG.stations) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const iframe = document.createElement("iframe");
+        iframe.name = st.name;
+        iframe.src = `https://pegelalarm.at/paw/chart.html?commonid=${encodeURIComponent(st.commonId)}&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true`;
+        card.appendChild(iframe);
+        frag.appendChild(card);
+      }
+      grid.appendChild(frag);
     }
 
-    function degToCompass(num) {
-      const val = Math.floor((num / 22.5) + 0.5);
-      const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-      return arr[(val % 16)];
+    function getTodayStr() {
+      return new Intl.DateTimeFormat("sv-SE", { timeZone: CONFIG.timezone }).format(new Date());
+    }
+
+    function degToCompass(deg) {
+      if (typeof deg !== "number" || Number.isNaN(deg)) return "--";
+      return COMPASS[Math.floor(((deg % 360 + 360) % 360) / 22.5 + 0.5) % 16];
     }
 
     async function loadCapuaWeather(selectedDate) {
       const today = getTodayStr();
       const targetDate = selectedDate || today;
-      document.getElementById("datePicker").value = targetDate;
+      const dateInput = document.getElementById("datePicker");
+      dateInput.value = targetDate;
+      hoverIndex = null;
+      document.getElementById("chartTooltip").style.display = "none";
 
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=41.1055&longitude=14.2139&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=Europe%2FRome&start_date=${targetDate}&end_date=${targetDate}`;
+      const params = new URLSearchParams({
+        latitude: String(CONFIG.latitude),
+        longitude: String(CONFIG.longitude),
+        current: "temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m",
+        hourly: "temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m",
+        timezone: CONFIG.timezone,
+        start_date: targetDate,
+        end_date: targetDate
+      });
 
       try {
-        const res = await fetch(url);
-        weatherData = await res.json();
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+        const data = await res.json();
+        if (!res.ok || data.error || !data.hourly) {
+          throw new Error(data.reason || "Risposta API non valida");
+        }
+        weatherData = data;
 
-        if (targetDate === today && weatherData.current) {
-          const cur = weatherData.current;
-          const timeStr = cur.time.split("T")[1];
+        if (targetDate === today && data.current) {
+          const cur = data.current;
+          const timeStr = (cur.time || "").split("T")[1] || "--:--";
           const dir = degToCompass(cur.wind_direction_10m);
           document.getElementById("w-updated").textContent = `Aggiornato ore ${timeStr} (Oggi)`;
-          document.getElementById("w-temp").textContent = `${cur.temperature_2m.toFixed(1)} °C`;
-          document.getElementById("w-rain").textContent = `Pioggia: ${cur.precipitation} mm | Vento: ${cur.wind_speed_10m} km/h (raff. ${cur.wind_gusts_10m}) ${dir}`;
-        } else if (weatherData.hourly) {
-          const temps = weatherData.hourly.temperature_2m;
-          const rains = weatherData.hourly.precipitation;
-          const gusts = weatherData.hourly.wind_gusts_10m;
-          const minT = Math.min(...temps).toFixed(1);
-          const maxT = Math.max(...temps).toFixed(1);
-          const totRain = rains.reduce((a, b) => a + b, 0).toFixed(1);
-          const maxGust = Math.max(...gusts).toFixed(0);
-          document.getElementById("w-updated").textContent = `Giorno selezionato: ${targetDate.split('-').reverse().join('/')}`;
+          document.getElementById("w-temp").textContent = `${Number(cur.temperature_2m).toFixed(1)} °C`;
+          document.getElementById("w-rain").textContent =
+            `Pioggia: ${cur.precipitation} mm | Vento: ${cur.wind_speed_10m} km/h (raff. ${cur.wind_gusts_10m}) ${dir}`;
+        } else {
+          const temps = data.hourly.temperature_2m || [];
+          const rains = data.hourly.precipitation || [];
+          const gusts = data.hourly.wind_gusts_10m || [];
+          const minT = temps.length ? Math.min(...temps).toFixed(1) : "--";
+          const maxT = temps.length ? Math.max(...temps).toFixed(1) : "--";
+          const totRain = rains.reduce((a, b) => a + (Number(b) || 0), 0).toFixed(1);
+          const maxGust = gusts.length ? Math.max(...gusts).toFixed(0) : "--";
+          document.getElementById("w-updated").textContent = `Giorno selezionato: ${targetDate.split("-").reverse().join("/")}`;
           document.getElementById("w-temp").textContent = `${minT}° / ${maxT}°C`;
           document.getElementById("w-rain").textContent = `Pioggia tot: ${totRain} mm | Raffica max: ${maxGust} km/h`;
         }
         drawChart();
-      } catch (e) {
-        document.getElementById("w-updated").textContent = "Errore caricamento dati";
+      } catch (err) {
+        document.getElementById("w-updated").textContent = `Errore dati: ${err.message}`;
       }
-    }
-
-    function onDateChange() {
-      const val = document.getElementById("datePicker").value;
-      if (val) loadCapuaWeather(val);
-    }
-
-    function resetToday() {
-      loadCapuaWeather(getTodayStr());
     }
 
     function setMode(mode, btn) {
       currentMode = mode;
-      document.querySelectorAll('.w-tab').forEach(b => {
-        if (b.parentElement.classList.contains('weather-tabs')) b.classList.remove('active');
-      });
-      btn.classList.add('active');
-      document.getElementById("windLegend").style.display = (mode === 'wind') ? 'flex' : 'none';
-      document.getElementById("footerInfo").style.display = (mode === 'wind') ? 'none' : 'inline';
+      hoverIndex = null;
+      document.getElementById("chartTooltip").style.display = "none";
+      document.querySelectorAll(".weather-tabs .w-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("windLegend").style.display = mode === "wind" ? "flex" : "none";
+      document.getElementById("footerInfo").style.display = mode === "wind" ? "none" : "inline";
       drawChart();
     }
 
@@ -458,42 +472,47 @@
     function drawChart() {
       if (!weatherData || !weatherData.hourly) return;
       const canvas = document.getElementById("weatherChart");
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.parentElement.getBoundingClientRect();
+      const wrap = document.getElementById("chartWrap");
+      const rect = wrap.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
       const ctx = canvas.getContext("2d");
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const W = rect.width;
       const H = rect.height;
-      const isWind = currentMode === 'wind';
-      const padL = 40, padR = 14, padT = 8, padB = isWind ? 32 : 18;
+      const isWind = currentMode === "wind";
+      const padL = 40;
+      const padR = 14;
+      const padT = 8;
+      const padB = isWind ? 32 : 18;
       const plotW = Math.max(10, W - padL - padR);
       const plotH = Math.max(10, H - padT - padB);
 
-      const times = weatherData.hourly.time;
-      let values, gusts, dirs, unit;
+      const times = weatherData.hourly.time || [];
+      if (!times.length) return;
 
-      if (currentMode === 'temp') {
+      let values, gusts, dirs, unit;
+      if (currentMode === "temp") {
         values = weatherData.hourly.temperature_2m;
-        unit = '°';
-      } else if (currentMode === 'rain') {
+        unit = "°";
+      } else if (currentMode === "rain") {
         values = weatherData.hourly.precipitation;
-        unit = 'mm';
+        unit = "mm";
       } else {
         values = weatherData.hourly.wind_speed_10m;
         gusts = weatherData.hourly.wind_gusts_10m;
         dirs = weatherData.hourly.wind_direction_10m;
-        unit = 'km/h';
+        unit = "km/h";
       }
 
       let minVal = Math.min(...values);
-      let maxVal = isWind ? Math.max(...values, ...gusts) : Math.max(...values);
+      let maxVal = isWind && Array.isArray(gusts) ? Math.max(...values, ...gusts) : Math.max(...values);
 
-      if (currentMode === 'rain') {
+      if (currentMode === "rain") {
         minVal = 0;
         maxVal = Math.max(maxVal, 5);
       } else if (isWind) {
@@ -511,7 +530,6 @@
       ctx.strokeStyle = "#e2e8f0";
       ctx.lineWidth = 1;
 
-      // Griglia orizzontale
       for (let i = 0; i <= 3; i++) {
         const val = minVal + (range * i / 3);
         const y = padT + plotH - (plotH * i / 3);
@@ -519,21 +537,21 @@
         ctx.moveTo(padL, y);
         ctx.lineTo(W - padR, y);
         ctx.stroke();
-        const label = currentMode === 'rain' ? val.toFixed(1) : Math.round(val);
-        ctx.fillText(label + (isWind ? '' : unit), 2, y + 3);
+        const label = currentMode === "rain" ? val.toFixed(1) : Math.round(val);
+        ctx.fillText(label + (isWind ? "" : unit), 2, y + 3);
       }
       if (isWind) {
         ctx.fillText("km/h", 2, padT + 8);
       }
 
-      // Etichette asse X ogni 2 ore (+ frecce direzione vento)
-      for (let i = 0; i < times.length; i += 2) {
-        const x = padL + (plotW * i / (times.length - 1));
-        const hr = times[i].split("T")[1].slice(0, 2);
+      const stepX = W < 420 ? 3 : 2;
+      for (let i = 0; i < times.length; i += stepX) {
+        const x = padL + (plotW * i / Math.max(1, times.length - 1));
+        const hr = (times[i].split("T")[1] || "").slice(0, 2);
         ctx.fillStyle = "#64748b";
-        ctx.fillText(hr + "h", x - 9, padT + plotH + 11);
+        ctx.fillText(`${hr}h`, x - 9, padT + plotH + 11);
 
-        if (isWind && dirs) {
+        if (isWind && Array.isArray(dirs) && dirs[i] != null) {
           drawWindArrow(ctx, x, padT + plotH + 20, dirs[i]);
           ctx.fillStyle = "#334155";
           ctx.font = "9px sans-serif";
@@ -542,19 +560,17 @@
         }
       }
 
-      // Gradiente area sotto la curva
       const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
       grad.addColorStop(0, "rgba(2, 132, 199, 0.28)");
       grad.addColorStop(1, "rgba(2, 132, 199, 0.02)");
 
       ctx.beginPath();
       values.forEach((v, i) => {
-        const x = padL + (plotW * i / (values.length - 1));
+        const x = padL + (plotW * i / Math.max(1, values.length - 1));
         const y = padT + plotH - ((v - minVal) / range) * plotH;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
-
       ctx.strokeStyle = "#0284c7";
       ctx.lineWidth = 2.4;
       ctx.stroke();
@@ -565,13 +581,12 @@
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Linea tratteggiata raffiche
-      if (isWind && gusts) {
+      if (isWind && Array.isArray(gusts)) {
         ctx.save();
         ctx.beginPath();
         ctx.setLineDash([4, 3]);
         gusts.forEach((g, i) => {
-          const x = padL + (plotW * i / (gusts.length - 1));
+          const x = padL + (plotW * i / Math.max(1, gusts.length - 1));
           const y = padT + plotH - ((g - minVal) / range) * plotH;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
@@ -581,21 +596,98 @@
         ctx.stroke();
         ctx.restore();
       }
+
+      if (hoverIndex !== null && hoverIndex >= 0 && hoverIndex < times.length) {
+        const hx = padL + (plotW * hoverIndex / Math.max(1, times.length - 1));
+        const hy = padT + plotH - ((values[hoverIndex] - minVal) / range) * plotH;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.35)";
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(hx, padT);
+        ctx.lineTo(hx, padT + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = "#0284c7";
+        ctx.beginPath();
+        ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
-    const chartWrap = document.querySelector(".canvas-wrap");
-    if (typeof ResizeObserver !== "undefined" && chartWrap) {
+    function handlePointerMove(e) {
+      if (!weatherData || !weatherData.hourly || !weatherData.hourly.time.length) return;
+      const wrap = document.getElementById("chartWrap");
+      const tooltip = document.getElementById("chartTooltip");
+      const rect = wrap.getBoundingClientRect();
+      const padL = 40;
+      const padR = 14;
+      const plotW = Math.max(10, rect.width - padL - padR);
+      const relX = e.clientX - rect.left - padL;
+      const times = weatherData.hourly.time;
+
+      if (relX < -8 || relX > plotW + 8) {
+        hoverIndex = null;
+        tooltip.style.display = "none";
+        drawChart();
+        return;
+      }
+
+      const ratio = Math.max(0, Math.min(1, relX / plotW));
+      const idx = Math.round(ratio * (times.length - 1));
+      hoverIndex = idx;
+
+      const hr = (times[idx].split("T")[1] || "").slice(0, 5);
+      let text = "";
+      if (currentMode === "temp") {
+        text = `${hr} — ${Number(weatherData.hourly.temperature_2m[idx]).toFixed(1)} °C`;
+      } else if (currentMode === "rain") {
+        text = `${hr} — ${Number(weatherData.hourly.precipitation[idx]).toFixed(1)} mm`;
+      } else {
+        const spd = weatherData.hourly.wind_speed_10m[idx];
+        const gst = weatherData.hourly.wind_gusts_10m[idx];
+        const dir = degToCompass(weatherData.hourly.wind_direction_10m[idx]);
+        text = `${hr} — ${spd} km/h (raff. ${gst}) ${dir}`;
+      }
+
+      tooltip.textContent = text;
+      tooltip.style.display = "block";
+      drawChart();
+    }
+
+    document.querySelectorAll(".weather-tabs .w-tab").forEach(btn => {
+      btn.addEventListener("click", () => setMode(btn.dataset.mode, btn));
+    });
+    document.getElementById("datePicker").addEventListener("change", e => {
+      if (e.target.value) loadCapuaWeather(e.target.value);
+    });
+    document.getElementById("btnToday").addEventListener("click", () => loadCapuaWeather(getTodayStr()));
+
+    const chartWrap = document.getElementById("chartWrap");
+    chartWrap.addEventListener("pointermove", handlePointerMove);
+    chartWrap.addEventListener("pointerdown", handlePointerMove);
+    chartWrap.addEventListener("pointerleave", () => {
+      hoverIndex = null;
+      document.getElementById("chartTooltip").style.display = "none";
+      drawChart();
+    });
+
+    if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver(() => drawChart()).observe(chartWrap);
     } else {
       window.addEventListener("resize", drawChart);
     }
 
+    renderStations();
     loadCapuaWeather(getTodayStr());
     setInterval(() => {
       if (document.getElementById("datePicker").value === getTodayStr()) {
         loadCapuaWeather(getTodayStr());
       }
-    }, 15 * 60 * 1000);
+    }, CONFIG.refreshMs);
   </script>
 </body>
 </html>
