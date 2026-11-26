@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0284c7">
+  <title>Monitoraggio Volturno & Meteo Capua</title>
+  <style>
+    :root {
+      --bg-page: #e8eef5;
+      --bg-card: #ffffff;
+      --border-card: #d5dfec;
+      --accent-blue: #1e40af;
+      --accent-sky: #0284c7;
+      --accent-soft: #eff6ff;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --shadow-card: 0 8px 20px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 12px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      background: linear-gradient(135deg, #e2e8f0 0%, #eef4fb 50%, #e0eaf5 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-main);
+      min-height: 100dvh;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .layout {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    @media (min-width: 860px) {
+      body {
+        padding: 16px;
+      }
+      .grid-2x2 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
+      padding: 8px;
+      overflow: hidden;
+      min-height: 360px;
+      height: 52dvh;
+      max-height: 520px;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    @media (min-width: 860px) {
+      .card {
+        height: 320px;
+        max-height: none;
+      }
+    }
+
+    .card:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 12px 24px -6px rgba(30, 64, 175, 0.12);
+    }
+
+    .card-weather {
+      height: auto;
+      min-height: 310px;
+      max-height: none;
+      background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+      border-top: 3px solid var(--accent-sky);
+    }
+
+    @media (min-width: 860px) {
+      .card-weather {
+        height: 270px;
+      }
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* Stile widget meteo */
+    .weather-box {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 294px;
+      padding: 6px 10px;
+      gap: 8px;
+    }
+
+    @media (min-width: 860px) {
+      .weather-box {
+        min-height: 0;
+        padding: 6px 12px;
+        gap: 6px;
+      }
+    }
+
+    .weather-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .weather-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent-blue);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .weather-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .weather-now {
+      text-align: right;
+      background: var(--accent-soft);
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #dbeafe;
+      flex: 1 1 auto;
+      min-width: 180px;
+    }
+
+    @media (min-width: 600px) {
+      .weather-now {
+        flex: 0 0 auto;
+      }
+    }
+
+    .weather-temp {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent-blue);
+    }
+
+    .weather-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .weather-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .weather-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .w-tab {
+      font-size: 12px;
+      font-weight: 500;
+      min-height: 34px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      cursor: pointer;
+      color: #334155;
+      touch-action: manipulation;
+      transition: all 0.15s ease;
+    }
+
+    @media (min-width: 860px) {
+      .w-tab {
+        font-size: 11px;
+        min-height: 0;
+        padding: 4px 10px;
+        border-radius: 6px;
+      }
+    }
+
+    .w-tab:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
+
+    .w-tab.active {
+      background: var(--accent-sky);
+      color: #ffffff;
+      font-weight: 600;
+      border-color: var(--accent-sky);
+      box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);
+    }
+
+    .date-picker-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .date-input {
+      font-size: 12px;
+      min-height: 34px;
+      padding: 4px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      color: #334155;
+      background: #f8fafc;
+      font-family: inherit;
+    }
+
+    @media (min-width: 860px) {
+      .date-input {
+        font-size: 11px;
+        min-height: 0;
+        padding: 3px 8px;
+        border-radius: 6px;
+      }
+    }
+
+    .canvas-wrap {
+      flex: 1 1 auto;
+      position: relative;
+      width: 100%;
+      min-height: 150px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .weather-footer {
+      font-size: 10px;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .legend-wind {
+      display: none;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- SOPRA: Meteo Capua -->
+    <div class="card card-weather">
+      <div class="weather-box">
+        <div class="weather-header">
+          <div>
+            <div class="weather-title">⛅ Meteo, Capua</div>
+            <div class="weather-sub" id="w-updated">Caricamento dati...</div>
+          </div>
+          <div class="weather-now">
+            <div class="weather-temp" id="w-temp">-- °C</div>
+            <div class="weather-meta" id="w-rain">Pioggia: -- mm | Vento: -- km/h</div>
+          </div>
+        </div>
+
+        <div class="weather-controls">
+          <div class="weather-tabs">
+            <button type="button" class="w-tab active" onclick="setMode('temp', this)">Temp (°C)</button>
+            <button type="button" class="w-tab" onclick="setMode('rain', this)">Pioggia (mm)</button>
+            <button type="button" class="w-tab" onclick="setMode('wind', this)">Vento (km/h)</button>
+          </div>
+          <div class="date-picker-group">
+            <input type="date" id="datePicker" class="date-input" onchange="onDateChange()">
+            <button type="button" class="w-tab" onclick="resetToday()" title="Torna ad oggi">Oggi</button>
+          </div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="weatherChart"></canvas>
+        </div>
+
+        <div class="weather-footer">
+          <div class="legend-wind" id="windLegend">
+            <span style="color:#0284c7;">━ Vento medio</span>
+            <span style="color:#e11d48;">┅ Raffiche</span>
+            <span style="color:#475569;">↓ Direzione provenienza</span>
+          </div>
+          <span id="footerInfo">Dati orari 24h — Open-Meteo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SOTTO: Griglia 2x2 delle 4 Stazioni Idrometriche -->
+    <div class="grid-2x2">
+      <!-- 1. Alto a Sinistra -->
+      <div class="card">
+        <iframe
+          src="https://pegelalarm.at/paw/chart.html?commonid=campania-37535-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
+          name="Stazione 1"
+          loading="lazy">
+        </iframe>
+      </div>
+
+      <!-- 2. Alto a Destra -->
+      <div class="card">
+        <iframe
+          src="https://pegelalarm.at/paw/chart.html?commonid=campania-12241-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
+          name="Stazione 2"
+          loading="lazy">
+        </iframe>
+      </div>
+
+      <!-- 3. Basso a Sinistra -->
+      <div class="card">
+        <iframe
+          src="https://pegelalarm.at/paw/chart.html?commonid=campania-20916-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
+          name="Stazione 3"
+          loading="lazy">
+        </iframe>
+      </div>
+
+      <!-- 4. Basso a Destra (Nuova stazione campania-38479-it) -->
+      <div class="card">
+        <iframe
+          src="https://pegelalarm.at/paw/chart.html?commonid=campania-38479-it&lang=it&autoReloadMins=5&timeWindow=7day&showValueInTitle=true&showMetaData=true&showLegend=true"
+          name="Stazione 4"
+          loading="lazy">
+        </iframe>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let weatherData = null;
+    let currentMode = 'temp';
+
+    function getTodayStr() {
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      return new Date(now - offset).toISOString().split('T')[0];
+    }
+
+    function degToCompass(num) {
+      const val = Math.floor((num / 22.5) + 0.5);
+      const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+      return arr[(val % 16)];
+    }
+
+    async function loadCapuaWeather(selectedDate) {
+      const today = getTodayStr();
+      const targetDate = selectedDate || today;
+      document.getElementById("datePicker").value = targetDate;
+
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=41.1055&longitude=14.2139&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=Europe%2FRome&start_date=${targetDate}&end_date=${targetDate}`;
+
+      try {
+        const res = await fetch(url);
+        weatherData = await res.json();
+
+        if (targetDate === today && weatherData.current) {
+          const cur = weatherData.current;
+          const timeStr = cur.time.split("T")[1];
+          const dir = degToCompass(cur.wind_direction_10m);
+          document.getElementById("w-updated").textContent = `Aggiornato ore ${timeStr} (Oggi)`;
+          document.getElementById("w-temp").textContent = `${cur.temperature_2m.toFixed(1)} °C`;
+          document.getElementById("w-rain").textContent = `Pioggia: ${cur.precipitation} mm | Vento: ${cur.wind_speed_10m} km/h (raff. ${cur.wind_gusts_10m}) ${dir}`;
+        } else if (weatherData.hourly) {
+          const temps = weatherData.hourly.temperature_2m;
+          const rains = weatherData.hourly.precipitation;
+          const gusts = weatherData.hourly.wind_gusts_10m;
+          const minT = Math.min(...temps).toFixed(1);
+          const maxT = Math.max(...temps).toFixed(1);
+          const totRain = rains.reduce((a, b) => a + b, 0).toFixed(1);
+          const maxGust = Math.max(...gusts).toFixed(0);
+          document.getElementById("w-updated").textContent = `Giorno selezionato: ${targetDate.split('-').reverse().join('/')}`;
+          document.getElementById("w-temp").textContent = `${minT}° / ${maxT}°C`;
+          document.getElementById("w-rain").textContent = `Pioggia tot: ${totRain} mm | Raffica max: ${maxGust} km/h`;
+        }
+        drawChart();
+      } catch (e) {
+        document.getElementById("w-updated").textContent = "Errore caricamento dati";
+      }
+    }
+
+    function onDateChange() {
+      const val = document.getElementById("datePicker").value;
+      if (val) loadCapuaWeather(val);
+    }
+
+    function resetToday() {
+      loadCapuaWeather(getTodayStr());
+    }
+
+    function setMode(mode, btn) {
+      currentMode = mode;
+      document.querySelectorAll('.w-tab').forEach(b => {
+        if (b.parentElement.classList.contains('weather-tabs')) b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      document.getElementById("windLegend").style.display = (mode === 'wind') ? 'flex' : 'none';
+      document.getElementById("footerInfo").style.display = (mode === 'wind') ? 'none' : 'inline';
+      drawChart();
+    }
+
+    function drawWindArrow(ctx, x, y, deg) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((deg * Math.PI) / 180);
+      ctx.strokeStyle = "#334155";
+      ctx.fillStyle = "#334155";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(0, -4);
+      ctx.lineTo(0, 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, 5);
+      ctx.lineTo(-2.8, 1.5);
+      ctx.lineTo(2.8, 1.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawChart() {
+      if (!weatherData || !weatherData.hourly) return;
+      const canvas = document.getElementById("weatherChart");
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = rect.height;
+      const isWind = currentMode === 'wind';
+      const padL = 40, padR = 14, padT = 8, padB = isWind ? 32 : 18;
+      const plotW = Math.max(10, W - padL - padR);
+      const plotH = Math.max(10, H - padT - padB);
+
+      const times = weatherData.hourly.time;
+      let values, gusts, dirs, unit;
+
+      if (currentMode === 'temp') {
+        values = weatherData.hourly.temperature_2m;
+        unit = '°';
+      } else if (currentMode === 'rain') {
+        values = weatherData.hourly.precipitation;
+        unit = 'mm';
+      } else {
+        values = weatherData.hourly.wind_speed_10m;
+        gusts = weatherData.hourly.wind_gusts_10m;
+        dirs = weatherData.hourly.wind_direction_10m;
+        unit = 'km/h';
+      }
+
+      let minVal = Math.min(...values);
+      let maxVal = isWind ? Math.max(...values, ...gusts) : Math.max(...values);
+
+      if (currentMode === 'rain') {
+        minVal = 0;
+        maxVal = Math.max(maxVal, 5);
+      } else if (isWind) {
+        minVal = 0;
+        maxVal = Math.ceil((maxVal + 5) / 5) * 5;
+      } else {
+        minVal = Math.floor(minVal - 1);
+        maxVal = Math.ceil(maxVal + 1);
+      }
+      const range = (maxVal - minVal) || 1;
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.font = "10px sans-serif";
+      ctx.fillStyle = "#64748b";
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1;
+
+      // Griglia orizzontale
+      for (let i = 0; i <= 3; i++) {
+        const val = minVal + (range * i / 3);
+        const y = padT + plotH - (plotH * i / 3);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+        const label = currentMode === 'rain' ? val.toFixed(1) : Math.round(val);
+        ctx.fillText(label + (isWind ? '' : unit), 2, y + 3);
+      }
+      if (isWind) {
+        ctx.fillText("km/h", 2, padT + 8);
+      }
+
+      // Etichette asse X ogni 2 ore (+ frecce direzione vento)
+      for (let i = 0; i < times.length; i += 2) {
+        const x = padL + (plotW * i / (times.length - 1));
+        const hr = times[i].split("T")[1].slice(0, 2);
+        ctx.fillStyle = "#64748b";
+        ctx.fillText(hr + "h", x - 9, padT + plotH + 11);
+
+        if (isWind && dirs) {
+          drawWindArrow(ctx, x, padT + plotH + 20, dirs[i]);
+          ctx.fillStyle = "#334155";
+          ctx.font = "9px sans-serif";
+          ctx.fillText(degToCompass(dirs[i]), x - 7, padT + plotH + 30);
+          ctx.font = "10px sans-serif";
+        }
+      }
+
+      // Gradiente area sotto la curva
+      const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+      grad.addColorStop(0, "rgba(2, 132, 199, 0.28)");
+      grad.addColorStop(1, "rgba(2, 132, 199, 0.02)");
+
+      ctx.beginPath();
+      values.forEach((v, i) => {
+        const x = padL + (plotW * i / (values.length - 1));
+        const y = padT + plotH - ((v - minVal) / range) * plotH;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+
+      ctx.strokeStyle = "#0284c7";
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+
+      ctx.lineTo(padL + plotW, padT + plotH);
+      ctx.lineTo(padL, padT + plotH);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Linea tratteggiata raffiche
+      if (isWind && gusts) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([4, 3]);
+        gusts.forEach((g, i) => {
+          const x = padL + (plotW * i / (gusts.length - 1));
+          const y = padT + plotH - ((g - minVal) / range) * plotH;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = "#e11d48";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    const chartWrap = document.querySelector(".canvas-wrap");
+    if (typeof ResizeObserver !== "undefined" && chartWrap) {
+      new ResizeObserver(() => drawChart()).observe(chartWrap);
+    } else {
+      window.addEventListener("resize", drawChart);
+    }
+
+    loadCapuaWeather(getTodayStr());
+    setInterval(() => {
+      if (document.getElementById("datePicker").value === getTodayStr()) {
+        loadCapuaWeather(getTodayStr());
+      }
+    }, 15 * 60 * 1000);
+  </script>
+</body>
+</html>
